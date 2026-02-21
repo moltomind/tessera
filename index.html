@@ -170,6 +170,40 @@
       width: 100%;
     }
 
+    /* Loading overlay */
+    .loading-overlay {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 60px 32px;
+      text-align: center;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-label {
+      font-size: 15px; font-weight: 500; color: var(--text);
+    }
+    .progress-track {
+      width: 200px; height: 4px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; width: 0%;
+      background: var(--accent);
+      border-radius: 99px;
+      transition: width .15s ease;
+    }
+
     .change-image-btn {
       position: absolute; top: 12px; right: 12px;
       background: rgba(255,255,255,0.95);
@@ -381,6 +415,15 @@
       <div class="upload-types">JPG · PNG · WEBP · GIF</div>
     </div>
 
+    <!-- Loading indicator -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="spinner"></div>
+      <div class="loading-label">Bild wird geladen…</div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
     <canvas id="puzzleCanvas"></canvas>
 
     <button class="change-image-btn" id="changeBtn">
@@ -485,11 +528,10 @@ const optA4      = document.getElementById('optA4');
 const optA3      = document.getElementById('optA3');
 
 // ── Upload ─────────────────────────────────────────────────────────────────
-zone.addEventListener('click', e => {
-  if (changeBtn.contains(e.target) || e.target === changeBtn) return;
-  if (zone.classList.contains('loaded') && !changeBtn.contains(e.target)) return;
-  fileInput.click();
-});
+const loadingOverlay = document.getElementById('loadingOverlay');
+const progressFill   = document.getElementById('progressFill');
+
+// Drag & drop (desktop)
 zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
 zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
 zone.addEventListener('drop', e => {
@@ -498,27 +540,57 @@ zone.addEventListener('drop', e => {
   const f = e.dataTransfer.files[0];
   if (f && f.type.startsWith('image/')) loadFile(f);
 });
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
-changeBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+
+// File input change (mobile tap + desktop click)
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) loadFile(fileInput.files[0]);
+});
+
+// Change-button: re-show file picker after image loaded
+changeBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  fileInput.click();
+});
+
+function showLoading() {
+  prompt.style.display        = 'none';
+  canvas.style.display        = 'none';
+  loadingOverlay.style.display = 'flex';
+  progressFill.style.width    = '0%';
+}
 
 function loadFile(file) {
+  showLoading();
+
   const reader = new FileReader();
+
+  reader.onprogress = e => {
+    if (e.lengthComputable) {
+      progressFill.style.width = Math.round((e.loaded / e.total) * 80) + '%';
+    }
+  };
+
   reader.onload = ev => {
+    progressFill.style.width = '90%';
     const image = new Image();
     image.onload = () => {
-      img = image;
-      zone.classList.add('loaded');
-      prompt.style.display = 'none';
-      canvas.style.display = 'block';
-      changeBtn.style.display = 'flex';
-      controls.classList.add('visible');
-      generateEdges();
-      renderPuzzle();
-      updateInfo();
-      lucide.createIcons();
+      progressFill.style.width = '100%';
+      setTimeout(() => {
+        img = image;
+        loadingOverlay.style.display = 'none';
+        canvas.style.display         = 'block';
+        changeBtn.style.display      = 'flex';
+        zone.classList.add('loaded');
+        controls.classList.add('visible');
+        generateEdges();
+        renderPuzzle();
+        updateInfo();
+        lucide.createIcons();
+      }, 200); // kurze Pause damit 100% sichtbar ist
     };
     image.src = ev.target.result;
   };
+
   reader.readAsDataURL(file);
 }
 
