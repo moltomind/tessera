@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tessera — Bild zu Puzzle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --surface: #f7f7f8;
+      --border: #e8e8ea;
+      --text: #111111;
+      --muted: #717171;
+      --accent: #4f46e5;
+      --accent-dark: #3730a3;
+      --radius: 14px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      height: 64px;
+      padding: 0 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none; color: var(--text);
+    }
+
+    .logo-mark {
+      width: 34px; height: 34px;
+      background: var(--accent);
+      border-radius: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 3px; padding: 6px;
+    }
+    .logo-mark span {
+      background: white;
+      border-radius: 2px;
+      display: block;
+    }
+    .logo-mark span:last-child {
+      background: rgba(255,255,255,0.45);
+      transform: translate(2px, -2px);
+    }
+
+    .logo-name {
+      font-size: 17px; font-weight: 700;
+      letter-spacing: -0.4px;
+    }
+    .logo-sub {
+      font-size: 11px; color: var(--muted);
+      font-weight: 400; margin-top: 1px;
+      letter-spacing: 0.1px;
+    }
+
+    .header-badge {
+      font-size: 12px; color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 12px;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ── Main ───────────────────────────────────────────────────────────────── */
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    .page-title {
+      font-size: 32px; font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    .page-subtitle {
+      font-size: 16px; color: var(--muted);
+      margin-bottom: 36px;
+      font-weight: 400;
+    }
+
+    /* ── Upload zone ────────────────────────────────────────────────────────── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+      overflow: hidden;
+      min-height: 260px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: #f3f2ff;
+    }
+    .upload-zone.loaded {
+      border-style: solid;
+      border-color: var(--border);
+      min-height: unset;
+      display: block;
+      cursor: default;
+      background: #1a1a1a;
+    }
+
+    .upload-prompt {
+      text-align: center; padding: 40px 24px;
+      pointer-events: none;
+    }
+    .upload-icon {
+      color: var(--accent); margin-bottom: 16px;
+      display: flex; justify-content: center;
+    }
+    .upload-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .upload-hint  { font-size: 14px; color: var(--muted); line-height: 1.6; }
+    .upload-types {
+      display: inline-block; margin-top: 12px;
+      font-size: 12px; color: var(--muted);
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+    }
+    input[type=file] { display: none; }
+
+    #puzzleCanvas {
+      display: none;
+      max-width: 100%;
+      width: 100%;
+    }
+
+    .change-image-btn {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer;
+      display: none; align-items: center; gap: 7px;
+      box-shadow: var(--shadow-md);
+      font-family: inherit; color: var(--text);
+      transition: box-shadow .2s;
+      backdrop-filter: blur(8px);
+    }
+    .change-image-btn:hover { box-shadow: var(--shadow-lg); }
+
+    /* ── Controls ───────────────────────────────────────────────────────────── */
+    #controls {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    #controls.visible { display: flex; animation: slideUp .3s ease; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-row {
+      display: flex; gap: 16px;
+    }
+    .card-row .card { flex: 1; }
+
+    .card-label {
+      font-size: 11px; font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin-bottom: 18px;
+      display: flex; align-items: center; gap: 7px;
+    }
+
+    /* Stepper */
+    .stepper {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .stepper-btn {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: white;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text);
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+    .stepper-btn:hover:not(:disabled) {
+      border-color: var(--text);
+      box-shadow: var(--shadow-md);
+    }
+    .stepper-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    .stepper-val {
+      flex: 1; text-align: center;
+    }
+    .stepper-num {
+      font-size: 38px; font-weight: 700;
+      letter-spacing: -2px; line-height: 1;
+      color: var(--accent);
+    }
+    .stepper-desc {
+      font-size: 13px; color: var(--muted); margin-top: 4px;
+    }
+
+    /* Paper selector */
+    .paper-options {
+      display: flex; gap: 12px;
+    }
+    .paper-opt {
+      flex: 1;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 12px;
+      cursor: pointer;
+      text-align: center;
+      transition: all .15s;
+      position: relative;
+      user-select: none;
+    }
+    .paper-opt input { position: absolute; opacity: 0; pointer-events: none; }
+    .paper-opt:hover { border-color: var(--accent); }
+    .paper-opt.active {
+      border-color: var(--accent);
+      background: #f3f2ff;
+    }
+    .paper-size-name {
+      font-size: 26px; font-weight: 700; letter-spacing: -1px;
+      color: var(--text);
+    }
+    .paper-opt.active .paper-size-name { color: var(--accent); }
+    .paper-dims {
+      font-size: 12px; color: var(--muted); margin-top: 4px;
+    }
+    .paper-orient {
+      font-size: 11px; color: var(--muted);
+      margin-top: 6px;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+
+    /* Info chips */
+    .info-chips {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .chip {
+      font-size: 13px; color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 12px;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* Export button */
+    .export-btn {
+      width: 100%;
+      padding: 17px 24px;
+      background: var(--text);
+      color: white;
+      border: none; border-radius: var(--radius);
+      font-size: 16px; font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      font-family: inherit; letter-spacing: -0.2px;
+      transition: all .2s;
+    }
+    .export-btn:hover {
+      background: #2d2d2d;
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-lg);
+    }
+    .export-btn:active { transform: translateY(0); }
+    .export-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ── Footer ─────────────────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--border);
+    }
+    footer strong { color: var(--accent); font-weight: 600; }
+
+    @media (max-width: 580px) {
+      header { padding: 0 16px; }
+      main { padding: 28px 16px 60px; }
+      .page-title { font-size: 24px; }
+      .card-row { flex-direction: column; }
+      .header-badge { display: none; }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<header>
+  <a class="logo" href="#">
+    <div class="logo-mark">
+      <span></span><span></span>
+      <span></span><span></span>
+    </div>
+    <div>
+      <div class="logo-name">Tessera</div>
+      <div class="logo-sub">Bild zu Puzzle</div>
+    </div>
+  </a>
+  <div class="header-badge">
+    <i data-lucide="sparkles" style="width:13px;height:13px;"></i>
+    Kostenlos &amp; ohne Anmeldung
+  </div>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────────────────────────── -->
+<main>
+  <h1 class="page-title">Dein Bild, dein Puzzle.</h1>
+  <p class="page-subtitle">Lade ein Foto hoch, wähle die Teileanzahl und exportiere es druckfertig als PDF.</p>
+
+  <!-- Upload zone -->
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept="image/*" />
+
+    <div class="upload-prompt" id="uploadPrompt">
+      <div class="upload-icon">
+        <i data-lucide="image-plus" style="width:52px;height:52px;"></i>
+      </div>
+      <div class="upload-title">Bild hierher ziehen</div>
+      <div class="upload-hint">oder klicken zum Auswählen</div>
+      <div class="upload-types">JPG · PNG · WEBP · GIF</div>
+    </div>
+
+    <canvas id="puzzleCanvas"></canvas>
+
+    <button class="change-image-btn" id="changeBtn">
+      <i data-lucide="image" style="width:14px;height:14px;"></i>
+      Bild wechseln
+    </button>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+
+    <div class="card-row">
+      <!-- Piece stepper -->
+      <div class="card">
+        <div class="card-label">
+          <i data-lucide="grid-3x3" style="width:13px;height:13px;"></i>
+          Puzzle-Teile
+        </div>
+        <div class="stepper">
+          <button class="stepper-btn" id="btnMinus">
+            <i data-lucide="minus" style="width:18px;height:18px;"></i>
+          </button>
+          <div class="stepper-val">
+            <div class="stepper-num" id="numDisplay">16</div>
+            <div class="stepper-desc" id="gridDisplay">4 × 4 Raster</div>
+          </div>
+          <button class="stepper-btn" id="btnPlus">
+            <i data-lucide="plus" style="width:18px;height:18px;"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Paper size -->
+      <div class="card">
+        <div class="card-label">
+          <i data-lucide="file" style="width:13px;height:13px;"></i>
+          Papierformat
+        </div>
+        <div class="paper-options">
+          <label class="paper-opt active" id="optA4">
+            <input type="radio" name="paper" value="A4" checked />
+            <div class="paper-size-name">A4</div>
+            <div class="paper-dims">210 × 297 mm</div>
+          </label>
+          <label class="paper-opt" id="optA3">
+            <input type="radio" name="paper" value="A3" />
+            <div class="paper-size-name">A3</div>
+            <div class="paper-dims">297 × 420 mm</div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info chips -->
+    <div class="card" id="infoCard" style="padding: 16px 24px;">
+      <div class="info-chips" id="infoChips"></div>
+    </div>
+
+    <!-- Export -->
+    <button class="export-btn" id="exportBtn">
+      <i data-lucide="download" style="width:20px;height:20px;"></i>
+      Als PDF exportieren
+    </button>
+
+  </div>
+</main>
+
+<!-- ── Footer ───────────────────────────────────────────────────────────────── -->
+<footer>
+  <strong>Tessera</strong> &mdash; Puzzle-Generator &copy; 2026 &mdash; Kein Upload, alles läuft im Browser
+</footer>
+
+<!-- ── Script ───────────────────────────────────────────────────────────────── -->
+<script>
+lucide.createIcons();
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const TAB = 1, BLANK = -1, FLAT = 0;
+const GRID_STEPS = [2, 3, 4, 5, 6, 7, 8, 10]; // → 4, 9, 16, 25, 36, 49, 64, 100
+
+// ── State ──────────────────────────────────────────────────────────────────
+let img = null;
+let stepIdx = 2;      // default: index 2 = 4×4
+let paper = 'A4';
+let vEdges = [], hEdges = [];
+
+// ── DOM ────────────────────────────────────────────────────────────────────
+const zone       = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+const prompt     = document.getElementById('uploadPrompt');
+const canvas     = document.getElementById('puzzleCanvas');
+const ctx        = canvas.getContext('2d');
+const changeBtn  = document.getElementById('changeBtn');
+const controls   = document.getElementById('controls');
+const btnMinus   = document.getElementById('btnMinus');
+const btnPlus    = document.getElementById('btnPlus');
+const numDisplay = document.getElementById('numDisplay');
+const gridDisplay= document.getElementById('gridDisplay');
+const exportBtn  = document.getElementById('exportBtn');
+const infoChips  = document.getElementById('infoChips');
+const optA4      = document.getElementById('optA4');
+const optA3      = document.getElementById('optA3');
+
+// ── Upload ─────────────────────────────────────────────────────────────────
+zone.addEventListener('click', e => {
+  if (changeBtn.contains(e.target) || e.target === changeBtn) return;
+  if (zone.classList.contains('loaded') && !changeBtn.contains(e.target)) return;
+  fileInput.click();
+});
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+changeBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const image = new Image();
+    image.onload = () => {
+      img = image;
+      zone.classList.add('loaded');
+      prompt.style.display = 'none';
+      canvas.style.display = 'block';
+      changeBtn.style.display = 'flex';
+      controls.classList.add('visible');
+      generateEdges();
+      renderPuzzle();
+      updateInfo();
+      lucide.createIcons();
+    };
+    image.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Stepper ────────────────────────────────────────────────────────────────
+function gridN() { return GRID_STEPS[stepIdx]; }
+
+function updateStepper() {
+  const n = gridN();
+  numDisplay.textContent = n * n;
+  gridDisplay.textContent = `${n} × ${n} Raster`;
+  btnMinus.disabled = stepIdx === 0;
+  btnPlus.disabled  = stepIdx === GRID_STEPS.length - 1;
+  if (img) { generateEdges(); renderPuzzle(); updateInfo(); }
+}
+
+btnMinus.addEventListener('click', () => { if (stepIdx > 0) { stepIdx--; updateStepper(); } });
+btnPlus.addEventListener ('click', () => { if (stepIdx < GRID_STEPS.length - 1) { stepIdx++; updateStepper(); } });
+updateStepper();
+
+// ── Paper ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('[name=paper]').forEach(r => {
+  r.addEventListener('change', e => {
+    paper = e.target.value;
+    optA4.classList.toggle('active', paper === 'A4');
+    optA3.classList.toggle('active', paper === 'A3');
+    updateInfo();
+  });
+});
+
+// ── Edge generation ────────────────────────────────────────────────────────
+function generateEdges() {
+  const n = gridN();
+  vEdges = []; hEdges = [];
+  for (let r = 0; r < n - 1; r++) {
+    vEdges[r] = [];
+    for (let c = 0; c < n; c++) vEdges[r][c] = Math.random() > .5 ? TAB : BLANK;
+  }
+  for (let r = 0; r < n; r++) {
+    hEdges[r] = [];
+    for (let c = 0; c < n - 1; c++) hEdges[r][c] = Math.random() > .5 ? TAB : BLANK;
+  }
+}
+
+function pieceEdges(r, c) {
+  const n = gridN();
+  return {
+    top:    r === 0   ? FLAT : -vEdges[r-1][c],
+    bottom: r === n-1 ? FLAT :  vEdges[r][c],
+    left:   c === 0   ? FLAT : -hEdges[r][c-1],
+    right:  c === n-1 ? FLAT :  hEdges[r][c],
+  };
+}
+
+// ── Piece path ─────────────────────────────────────────────────────────────
+// Draws a closed path for one puzzle piece using bezier-curved tabs/blanks.
+function piecePath(c2d, px, py, pw, ph, edges) {
+  const { top, right, bottom, left } = edges;
+
+  // Tab protrusion ratios
+  const TH = ph * 0.26;  // tab height (for top/bottom edges)
+  const TW = pw * 0.26;  // tab width  (for left/right edges)
+  // Neck half-width (the "shoulder" of the tab)
+  const NW = pw * 0.18;  // for horizontal edges
+  const NH = ph * 0.18;  // for vertical edges
+
+  c2d.beginPath();
+  c2d.moveTo(px, py);
+
+  // TOP (left → right, tab goes up)
+  {
+    const mx = px + pw / 2;
+    const t  = top * TH;
+    if (top === FLAT) {
+      c2d.lineTo(px + pw, py);
+    } else {
+      c2d.lineTo(mx - NW * 1.8, py);
+      c2d.bezierCurveTo(mx - NW * 1.6, py - t * .5, mx - NW * .9, py - t, mx, py - t);
+      c2d.bezierCurveTo(mx + NW * .9, py - t, mx + NW * 1.6, py - t * .5, mx + NW * 1.8, py);
+      c2d.lineTo(px + pw, py);
+    }
+  }
+
+  // RIGHT (top → bottom, tab goes right)
+  {
+    const my = py + ph / 2;
+    const t  = right * TW;
+    if (right === FLAT) {
+      c2d.lineTo(px + pw, py + ph);
+    } else {
+      c2d.lineTo(px + pw, my - NH * 1.8);
+      c2d.bezierCurveTo(px + pw + t * .5, my - NH * 1.6, px + pw + t, my - NH * .9, px + pw + t, my);
+      c2d.bezierCurveTo(px + pw + t, my + NH * .9, px + pw + t * .5, my + NH * 1.6, px + pw, my + NH * 1.8);
+      c2d.lineTo(px + pw, py + ph);
+    }
+  }
+
+  // BOTTOM (right → left, tab goes down)
+  {
+    const mx = px + pw / 2;
+    const t  = bottom * TH;
+    if (bottom === FLAT) {
+      c2d.lineTo(px, py + ph);
+    } else {
+      c2d.lineTo(mx + NW * 1.8, py + ph);
+      c2d.bezierCurveTo(mx + NW * 1.6, py + ph + t * .5, mx + NW * .9, py + ph + t, mx, py + ph + t);
+      c2d.bezierCurveTo(mx - NW * .9, py + ph + t, mx - NW * 1.6, py + ph + t * .5, mx - NW * 1.8, py + ph);
+      c2d.lineTo(px, py + ph);
+    }
+  }
+
+  // LEFT (bottom → top, tab goes left)
+  {
+    const my = py + ph / 2;
+    const t  = left * TW;
+    if (left === FLAT) {
+      c2d.lineTo(px, py);
+    } else {
+      c2d.lineTo(px, my + NH * 1.8);
+      c2d.bezierCurveTo(px - t * .5, my + NH * 1.6, px - t, my + NH * .9, px - t, my);
+      c2d.bezierCurveTo(px - t, my - NH * .9, px - t * .5, my - NH * 1.6, px, my - NH * 1.8);
+      c2d.lineTo(px, py);
+    }
+  }
+
+  c2d.closePath();
+}
+
+// ── Render preview ─────────────────────────────────────────────────────────
+function renderPuzzle() {
+  if (!img) return;
+  const n  = gridN();
+  const iw = img.width, ih = img.height;
+
+  // Scale image to fit canvas display width
+  const maxW  = Math.min(iw, zone.clientWidth || 860);
+  const scale = maxW / iw;
+  const dw    = iw * scale;
+  const dh    = ih * scale;
+
+  const pad = Math.min(dw, dh) / n * 0.30;
+
+  canvas.width  = dw + pad * 2;
+  canvas.height = dh + pad * 2;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#1c1c1e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const pw = dw / n;
+  const ph = dh / n;
+
+  // Pass 1: clip each piece and draw image
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const px = pad + c * pw;
+      const py = pad + r * ph;
+      const e  = pieceEdges(r, c);
+
+      ctx.save();
+      piecePath(ctx, px, py, pw, ph, e);
+      ctx.clip();
+      ctx.drawImage(img, pad, pad, dw, dh);
+      ctx.restore();
+    }
+  }
+
+  // Pass 2: draw cut lines on top
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth   = Math.max(0.8, pw / 80);
+  ctx.lineJoin    = 'round';
+  ctx.lineCap     = 'round';
+
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const px = pad + c * pw;
+      const py = pad + r * ph;
+      piecePath(ctx, px, py, pw, ph, pieceEdges(r, c));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+// ── Info chips ─────────────────────────────────────────────────────────────
+function updateInfo() {
+  if (!img) return;
+  const n = gridN();
+  const total = n * n;
+  const landscape = img.width > img.height;
+  const dims = { A4: [210, 297], A3: [297, 420] };
+  let [pw, ph] = dims[paper];
+  if (landscape) [pw, ph] = [ph, pw];
+  const margin = 8;
+  const pieceW = Math.round((pw - margin * 2) / n);
+  const pieceH = Math.round((ph - margin * 2) / n);
+  const orient = landscape ? 'Querformat' : 'Hochformat';
+
+  infoChips.innerHTML = `
+    <div class="chip">
+      <i data-lucide="puzzle" style="width:13px;height:13px;"></i>
+      ${total} Teile
+    </div>
+    <div class="chip">
+      <i data-lucide="ruler" style="width:13px;height:13px;"></i>
+      ca. ${pieceW} × ${pieceH} mm pro Teil
+    </div>
+    <div class="chip">
+      <i data-lucide="file-text" style="width:13px;height:13px;"></i>
+      ${paper}, ${orient}
+    </div>
+    <div class="chip">
+      <i data-lucide="image" style="width:13px;height:13px;"></i>
+      ${img.width} × ${img.height} px
+    </div>
+  `;
+  lucide.createIcons();
+}
+
+// ── PDF export ─────────────────────────────────────────────────────────────
+exportBtn.addEventListener('click', exportPDF);
+
+function exportPDF() {
+  if (!img) return;
+
+  // Lock button
+  exportBtn.disabled = true;
+  exportBtn.innerHTML = `<i data-lucide="loader-2" style="width:20px;height:20px;animation:spin 1s linear infinite"></i> Wird erstellt…`;
+  const style = document.createElement('style');
+  style.textContent = '@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}';
+  document.head.appendChild(style);
+  lucide.createIcons();
+
+  setTimeout(() => {
+    try {
+      const { jsPDF } = window.jspdf;
+      const landscape = img.width > img.height;
+      const orientation = landscape ? 'landscape' : 'portrait';
+
+      const doc = new jsPDF({ orientation, unit: 'mm', format: paper.toLowerCase() });
+
+      const dims = { A4: [210, 297], A3: [297, 420] };
+      let [pageW, pageH] = dims[paper];
+      if (landscape) [pageW, pageH] = [pageH, pageW];
+
+      const margin = 8;
+      const printW = pageW - margin * 2;
+      const printH = pageH - margin * 2;
+
+      // High-DPI offscreen canvas (200 DPI)
+      const DPI = 200;
+      const mm2px = DPI / 25.4;
+      const offW = Math.round(printW * mm2px);
+      const offH = Math.round(printH * mm2px);
+
+      const off = document.createElement('canvas');
+      off.width = offW; off.height = offH;
+      const oc = off.getContext('2d');
+
+      const n  = gridN();
+      const pw = offW / n;
+      const ph = offH / n;
+
+      // Draw image
+      oc.drawImage(img, 0, 0, offW, offH);
+
+      // Draw cut lines (only internal edges, sharper)
+      oc.strokeStyle = 'rgba(20,20,20,0.6)';
+      oc.lineWidth   = mm2px * 0.22;
+      oc.lineJoin    = 'round';
+      oc.lineCap     = 'round';
+
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          piecePath(oc, c * pw, r * ph, pw, ph, pieceEdges(r, c));
+          oc.stroke();
+        }
+      }
+
+      // Outer border
+      oc.strokeStyle = 'rgba(0,0,0,0.7)';
+      oc.lineWidth   = mm2px * 0.3;
+      oc.strokeRect(0, 0, offW, offH);
+
+      // Small brand watermark
+      oc.fillStyle = 'rgba(80,80,80,0.4)';
+      oc.font = `${mm2px * 2.5}px Inter, sans-serif`;
+      oc.textAlign = 'right';
+      oc.fillText('tessera.app', offW - mm2px * 2, offH - mm2px * 2);
+
+      const imgData = off.toDataURL('image/jpeg', 0.93);
+      doc.addImage(imgData, 'JPEG', margin, margin, printW, printH);
+      doc.save(`tessera-${n}x${n}-${paper}.pdf`);
+
+    } catch(err) {
+      alert('Fehler beim Export: ' + err.message);
+      console.error(err);
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.innerHTML = `<i data-lucide="download" style="width:20px;height:20px;"></i> Als PDF exportieren`;
+      lucide.createIcons();
+    }
+  }, 80);
+}
+
+// ── Resize ─────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => { if (img) renderPuzzle(); });
+</script>
+</body>
+</html>
