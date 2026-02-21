@@ -562,36 +562,32 @@ function showLoading() {
 function loadFile(file) {
   showLoading();
 
-  const reader = new FileReader();
+  const url = URL.createObjectURL(file);
+  const image = new Image();
 
-  reader.onprogress = e => {
-    if (e.lengthComputable) {
-      progressFill.style.width = Math.round((e.loaded / e.total) * 80) + '%';
-    }
+  image.onload = () => {
+    progressFill.style.width = '100%';
+    setTimeout(() => {
+      img = image;
+      URL.revokeObjectURL(url);
+      loadingOverlay.style.display = 'none';
+      canvas.style.display         = 'block';
+      changeBtn.style.display      = 'flex';
+      zone.classList.add('loaded');
+      controls.classList.add('visible');
+      generateEdges();
+      renderPuzzle();
+      updateInfo();
+      lucide.createIcons();
+    }, 150);
   };
 
-  reader.onload = ev => {
-    progressFill.style.width = '90%';
-    const image = new Image();
-    image.onload = () => {
-      progressFill.style.width = '100%';
-      setTimeout(() => {
-        img = image;
-        loadingOverlay.style.display = 'none';
-        canvas.style.display         = 'block';
-        changeBtn.style.display      = 'flex';
-        zone.classList.add('loaded');
-        controls.classList.add('visible');
-        generateEdges();
-        renderPuzzle();
-        updateInfo();
-        lucide.createIcons();
-      }, 200); // kurze Pause damit 100% sichtbar ist
-    };
-    image.src = ev.target.result;
+  image.onerror = () => {
+    loadingOverlay.innerHTML =
+      '<p style="padding:24px;color:#e00">Bild konnte nicht geladen werden.</p>';
   };
 
-  reader.readAsDataURL(file);
+  image.src = url;
 }
 
 // ── Stepper ────────────────────────────────────────────────────────────────
